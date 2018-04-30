@@ -1,0 +1,222 @@
+---
+title: "Practical Machine Learning Project"
+author: "Papachrysanthou George"
+date: "April 30, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+In this project, which is part of the "Practical Machine Learning" Coursera course, we will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants performing weight lifting exercises (correctly and incorrectly in 5 different ways) to train a model to predict the manner in which (how well) they did the relevant weight lifting exercise (barbell lifts).
+
+For this we use the **Weight Lifting Exercises Dataset** from http://groupware.les.inf.puc-rio.br/har. As described there: 
+Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E). Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes.
+This is the "classe" variable in the training set given and this is the variable we want to predict with some models.
+
+The libraries used in this project are the following:
+```{r, echo=TRUE, results='hide', message=FALSE, warning=FALSE}
+library(caret)
+library(rattle)
+library(gbm)
+library(randomForest)
+library(e1071)
+```
+
+
+## Data loading and preparation
+
+The training data for this project are available here:
+  https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+and the test data here:
+  https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+After dowloading the 2 csv files locally we load them using the following commands: 
+
+```{r, echo=TRUE}
+pml_training_data = read.csv("./pml-training.csv", dec=".", na.strings = c("NA", "#DIV/0!", "") )
+
+pml_testing_data = read.csv("./pml-testing.csv", dec=".", na.strings = c("NA", "#DIV/0!", ""))
+```
+
+(the na.strings parameter was added after a first loading of the data and after seeing that there exist many NA, empty and #DIV/0! values in some of the columns)
+
+Since some columns have mainly NA and empty values we want to ignore these, so with the following commands we select only the columns with less than 90% NA or empty values:
+
+```{r, echo=TRUE}
+empty_or_na_count <-sapply(pml_training_data, function(y) sum(length(which(y=="" | is.na(y)))))
+
+columns_to_use <- names(empty_or_na_count[which( (empty_or_na_count/dim(pml_training_data)[1]) < 0.9)])
+```
+
+With this method, from the initial `r dim(pml_training_data)[2]` columns, only `r length(columns_to_use)` are left.
+
+So the new training data set after ommiting all these columns is:
+```{r, echo=TRUE}
+pml_training_data_cl <- pml_training_data[columns_to_use]
+```
+
+With the following command we also remove the first 7 columns: X, user_name, raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp, new_window and num_window which have information irrelevant to the training purpose (we do not want the model to depend on the name of the participant or the time the exercise was performed)
+
+```{r, echo=TRUE}
+pml_training_data_cl <- pml_training_data_cl[, -(1:7)]
+
+```
+
+Although we will use cross validation during training, we will also split the training data to a training and validation set with the following commands in order to double check the out of sample accuracy and error rate:
+
+```{r, echo=TRUE}
+set.seed(1525)
+inTrain <- createDataPartition(pml_training_data_cl$classe, p=0.75, list=FALSE)
+
+new_pml_training_data <- pml_training_data_cl[inTrain, ]
+new_pml_validation_data <- pml_training_data_cl[-inTrain, ]
+dim(new_pml_training_data); dim(new_pml_validation_data)
+
+```
+
+## Model training
+
+We will try the following 3 models in order to select the one with the best accuracy:
+
+* Model 1: Classification Tree
+* Model 2: Gradient Boosting
+* Model 3: Random Forests
+
+We will use cross validation for all of them with K = 3. For this we use the following command:
+```{r, echo=TRUE}
+fitCtrl <- trainControl(method="cv", number=3, verboseIter=F)
+
+```
+
+### Model 1: Classification Tree
+
+The first model we try is a classification tree using the **rpart** method of the train function, using as splitting criterion the information gain (alternatevely we could use "gini" for gini index):
+
+```{r, echo=TRUE}
+set.seed(1020)
+mod_rpart <- train(classe ~ ., data=new_pml_training_data, method="rpart", trControl=fitCtrl, parms=list(split="information"), tuneLength=20)
+
+print(mod_rpart)
+
+```
+
+As we can see, the best accuracy accomplished with this method was around 81%. This accuracy is highly dependent on the parameter tuneLength used above. For smaller values like 15, 10 or 5 the accuracy is much lower. We can also see the relevant classification tree (using the fancyRpartPlot function from the rattle library), although it has too many nodes and is not clear:
+
+```{r, echo=TRUE}
+fancyRpartPlot(mod_rpart$finalModel, sub="Classification tree for Weight Lifting Exercises Data")
+```
+
+Additionally computing the accuracy of the model and the out of sample error using the validation set created above, gives the following numbers (and we can see that this accuracy is very close to the one found above):
+
+```{r, echo=TRUE}
+pred_rpart_v <- predict(mod_rpart, new_pml_validation_data)
+
+rpart_validation_accuracy <- sum(pred_rpart_v == new_pml_validation_data$classe)/length(pred_rpart_v)
+
+rpart_validation_accuracy
+
+# out of sample error
+rpart_outOfSampleError <- 1 - rpart_validation_accuracy
+rpart_outOfSampleError
+
+```
+
+### Model 2: Gradient Boosting
+
+Next we try the gradient boosting method
+
+```{r, echo=TRUE, results='hide', message=FALSE, warning=FALSE}
+set.seed(1020)
+mod_gbm <- train(classe ~ ., data=new_pml_training_data, method="gbm", trControl=fitCtrl)
+```
+
+which achieves a much better accuracy:
+
+```{r, echo=FALSE}
+print(mod_gbm)
+
+plot(mod_gbm)
+
+```
+
+and additionally computing the accuracy of the model and the out of sample error using the validation set created above, gives the following numbers (and we can see that this accuracy is very close to the one found above):
+
+```{r, echo=TRUE}
+pred_gbm_v <- predict(mod_gbm, new_pml_validation_data)
+
+gbm_validation_accuracy <- sum(pred_gbm_v == new_pml_validation_data$classe)/length(pred_gbm_v)
+
+gbm_validation_accuracy
+
+# out of sample error
+gbm_outOfSampleError <- 1 - gbm_validation_accuracy
+gbm_outOfSampleError
+
+```
+
+### Model 3: Random Forest
+
+Next we try the random forest method:
+
+```{r, echo=TRUE, results='hide', message=FALSE, warning=FALSE}
+set.seed(1020)
+mod_rf <- train(classe ~ ., data=new_pml_training_data, method="rf", trControl=fitCtrl)
+```
+
+which achieves an even better accuracy:
+
+```{r, echo=FALSE}
+print(mod_rf)
+```
+
+In the following plot we can see the accuracy of the model for different number of predictors: 
+
+```{r, echo=FALSE}
+plot(mod_rf, main = "Random forest accuracy")
+```
+
+And we can also see the most important variables used for this model:
+
+```{r, echo=TRUE}
+# View the variable importance for this model
+MostImportantVars <- varImp(mod_rf)
+MostImportantVars 
+```
+
+Additionally computing the accuracy of the model and the out of sample error using the validation set created above, gives the following numbers (and we can see that this accuracy is very close to the one found above):
+
+```{r, echo=TRUE}
+pred_rf_v <- predict(mod_rf, new_pml_validation_data)
+
+rf_validation_accuracy <- sum(pred_rf_v == new_pml_validation_data$classe)/length(pred_rf_v)
+
+rf_validation_accuracy
+
+# out of sample error
+rf_outOfSampleError <- 1 - rf_validation_accuracy
+rf_outOfSampleError
+
+```
+
+### Best model
+
+From the above we conclude that the model with the best accuracy was the one using the random forest method.
+
+## Predictions for the 20 test cases
+
+We now apply the best model found above, which was the random forest model, to the 20 test cases given (in the test csv file):
+(Since the only "data cleaning" we did was to omit some columns, these were not included in the model we trained and so they were not used for the predictions. Thus it is not necessary to omit these columns from the test set)
+
+```{r, echo=TRUE}
+pred_rf <- predict(mod_rf, pml_testing_data)
+pred_rf
+
+```
+
+
