@@ -128,8 +128,8 @@ $(document).ready(function () {
 
 <div id="introduction" class="section level2">
 <h2>Introduction</h2>
-<p>Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.</p>
-<p>In this project, which is part of the "Practical Machine Learning" Coursera course, we will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants performing weight lifting exercises (correctly and incorrectly in 5 different ways) to train a model to predict the manner in which (how well) they did the relevant weight lifting exercise (barbell lifts).</p>
+<p>Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement -- a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.</p>
+<p>In this project, which is part of the 'Practical Machine Learning' Coursera course, we will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants performing weight lifting exercises (correctly and incorrectly in 5 different ways) to train a model to predict the manner in which (how well) they did the relevant weight lifting exercise (barbell lifts).</p>
 <p>For this we use the <strong>Weight Lifting Exercises Dataset</strong> from <a href="http://groupware.les.inf.puc-rio.br/har" class="uri">http://groupware.les.inf.puc-rio.br/har</a>. As described there: Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E). Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes. This is the "classe" variable in the training set given and this is the variable we want to predict with some models.</p>
 <p>The libraries used in this project are the following:</p>
 <pre class="r"><code>library(caret)
@@ -177,7 +177,7 @@ dim(new_pml_training_data); dim(new_pml_validation_data)</code></pre>
 <pre class="r"><code>fitCtrl &lt;- trainControl(method=&quot;cv&quot;, number=3, verboseIter=F)</code></pre>
 <div id="model-1-classification-tree" class="section level3">
 <h3>Model 1: Classification Tree</h3>
-<p>The first model we try is a classification tree using the <strong>rpart</strong> method of the train function, using as splitting criterion the information gain (alternatevely we could use "gini" for gini index):</p>
+<p>The first model we try is a classification tree using the <strong>rpart</strong> method of the train function, using as splitting criterion the information gain (alternatevely we could use 'gini' for gini index):</p>
 <pre class="r"><code>set.seed(1020)
 mod_rpart &lt;- train(classe ~ ., data=new_pml_training_data, method=&quot;rpart&quot;, trControl=fitCtrl, parms=list(split=&quot;information&quot;), tuneLength=20)
 
@@ -354,7 +354,7 @@ rf_outOfSampleError</code></pre>
 </div>
 <div id="predictions-for-the-20-test-cases" class="section level2">
 <h2>Predictions for the 20 test cases</h2>
-<p>We now apply the best model found above, which was the random forest model, to the 20 test cases given (in the test csv file): (Since the only "data cleaning"we did was to omit some columns, these were not included in the model we trained and so they were not used for the predictions. Thus it is not necessary to omit these columns from the test set)</p>
+<p>We now apply the best model found above, which was the random forest model, to the 20 test cases given (in the test csv file): (Since the only 'data cleaning' we did was to omit some columns, these were not included in the model we trained and so they were not used for the predictions. Thus it is not necessary to omit these columns from the test set)</p>
 <pre class="r"><code>pred_rf &lt;- predict(mod_rf, pml_testing_data)
 pred_rf</code></pre>
 <pre><code>##  [1] B A B A A E D B A A B C B A E E A B B B
